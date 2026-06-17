@@ -1,0 +1,66 @@
+# ===========================================================================
+# preCal :: .gitignore
+# ===========================================================================
+# The repo holds CODE + CONFIG only. Everything heavy lives on $PRECAL_SCRATCH
+# and on the HF Hub, never in git.
+
+# --- scratch artifacts (corpus, shards, vectors, indexes, manifests) -------
+# These normally live under $PRECAL_SCRATCH (outside the repo), but ignore any
+# stray copies created inside the working tree.
+scratch/
+precal-scratch/
+hf/
+staged/
+manifests/
+shards/
+vectors/
+data/
+
+# --- large binary artifacts ------------------------------------------------
+*.npy
+*.npz
+*.faiss
+*.index
+*.bin
+*.sif            # apptainer/singularity images (TEI sm_120)
+*.arrow
+# parquet: ignore stray data parquet, but allow tiny fixtures under tests/ if added
+*.parquet
+!tests/**/*.parquet
+
+# --- HF / model caches -----------------------------------------------------
+*.safetensors
+*.gguf
+.cache/
+.huggingface/
+
+# --- SLURM job output ------------------------------------------------------
+*.out
+*.err
+slurm-*.out
+precal-*-*.out
+precal-*-*.err
+tei-*.log
+
+# --- python ----------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+.env
+
+# --- local / machine-specific overrides ------------------------------------
+.precal.env
+configs/local.yaml
+configs/*.local.yaml
+daic.txt
+
+# --- editor / OS -----------------------------------------------------------
+.idea/
+.vscode/
+.DS_Store
+*.swp

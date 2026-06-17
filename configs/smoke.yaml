@@ -1,0 +1,32 @@
+# Smoke overrides: 1-GPU end-to-end plumbing validation (~minutes).
+# Layered ON TOP of configs/default.yaml by the CLI, so only differences appear.
+# Matches the spec's smokeTest config block.
+
+run:
+  name: precal-smoke
+
+corpus:
+  languages: [python]                   # python only
+  max_files_per_lang: 5000              # ~5k python files
+
+chunk:
+  unit: symbol
+
+shard:
+  target_chunks: 75000                  # ~1-2 shards
+
+model:
+  id: Qwen/Qwen3-Embedding-0.6B         # smoke model (1024-d, identical template)
+  dtype: bfloat16                       # (auto-forced to float16 if engine=tei)
+  embed_dim: 1024                       # 0.6B native dim
+
+engine:
+  name: tei
+  replicas_per_gpu: 2                   # 2 replicas on the single smoke GPU
+
+index:
+  factory_smoke: Flat                   # exact ceiling
+
+eval:
+  benchmark: coir-csn
+  ks: [1, 5, 10, 100]

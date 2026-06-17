@@ -1,0 +1,81 @@
+# preCal base config: every key here is a configKeys default from the BUILD SPEC.
+# smoke.yaml / full_v1.yaml override a subset of these. Paths use ${PRECAL_SCRATCH}
+# which is interpolated at load time (must be exported before running).
+
+run:
+  name: precal-v1                       # run.name
+  seed: 42                              # run.seed
+
+paths:
+  scratch: ${PRECAL_SCRATCH}            # paths.scratch
+  hf_home: ${PRECAL_SCRATCH}/hf         # paths.hf_home
+  manifest_dir: ${PRECAL_SCRATCH}/manifests  # paths.manifest_dir
+
+corpus:
+  dataset_id: bigcode/the-stack-dedup   # corpus.dataset_id
+  revision: main                        # corpus.revision
+  languages:                            # corpus.languages (the 6-lang v1 slice)
+    - python
+    - java
+    - javascript
+    - php
+    - go
+    - ruby
+  license_allowlist:                    # corpus.license_allowlist (text republish gate)
+    - MIT
+    - Apache-2.0
+    - BSD-2-Clause
+    - BSD-3-Clause
+    - ISC
+    - 0BSD
+    - Unlicense
+    - CC0-1.0
+  max_files_per_lang: 0                 # corpus.max_files_per_lang (0 = no cap)
+
+chunk:
+  unit: symbol                          # chunk.unit (symbol | window)
+  max_tokens: 2048                      # chunk.max_tokens
+  overlap_tokens: 64                    # chunk.overlap_tokens
+  min_tokens: 8                         # chunk.min_tokens
+
+shard:
+  target_chunks: 250000                 # shard.target_chunks
+
+model:
+  id: Qwen/Qwen3-Embedding-4B           # model.id
+  revision: main                        # model.revision
+  dtype: bfloat16                       # model.dtype (auto-forced to float16 under TEI)
+  pooling: last_token                   # model.pooling
+  normalize: true                       # model.normalize
+  embed_dim: 2560                       # model.embed_dim
+  query_instruction: "Given a natural language query, retrieve relevant code snippets"  # model.query_instruction
+
+engine:
+  name: tei                             # engine.name (tei | infinity | vllm | sentence_transformers)
+  image: ghcr.io/huggingface/text-embeddings-inference:120-1.9  # engine.image (sm_120 Blackwell)
+  replicas_per_gpu: 4                   # engine.replicas_per_gpu
+  max_batch_tokens: 16384               # engine.max_batch_tokens
+  batch_size: 32                        # engine.batch_size
+
+embed:
+  checkpoint_every: 5000                # embed.checkpoint_every
+
+index:
+  metric: inner_product                 # index.metric
+  factory_smoke: Flat                   # index.factory_smoke (<1M, exact)
+  factory_full: OPQ64_256,IVF65536_HNSW32,PQ64  # index.factory_full (1M-50M tier)
+  train_sample: 2000000                 # index.train_sample
+  nprobe: 32                            # index.nprobe
+  merge: ondisk                         # index.merge (ondisk | sharded)
+
+publish:
+  repo_id: D4vidHuang/precal-code-embeddings  # publish.repo_id
+  num_workers: 16                       # publish.num_workers
+  emit_inline_embedding: false          # publish.emit_inline_embedding
+
+eval:
+  benchmark: coir-csn                   # eval.benchmark
+  ks: [1, 5, 10, 100]                   # eval.ks
+
+hf:
+  offline: true                         # hf.offline (sets HF_HUB_OFFLINE / TRANSFORMERS_OFFLINE on compute nodes)

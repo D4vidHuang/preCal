@@ -1,0 +1,32 @@
+# Full v1 overrides: 8+ GPU production run.
+# Layered ON TOP of configs/default.yaml by the CLI. Matches the spec's fullV1 block.
+
+run:
+  name: precal-v1
+
+corpus:
+  languages: [python, java, javascript, php, go, ruby]  # full 6-lang slice
+  max_files_per_lang: 0                 # no cap (or set a cap to hit ~3-5M files)
+
+shard:
+  target_chunks: 250000
+
+model:
+  id: Qwen/Qwen3-Embedding-4B
+  dtype: bfloat16                       # auto-forced to float16 under TEI
+  embed_dim: 2560
+
+engine:
+  name: tei
+  image: ghcr.io/huggingface/text-embeddings-inference:120-1.9
+  replicas_per_gpu: 4
+  max_batch_tokens: 16384
+
+index:
+  factory_full: OPQ64_256,IVF65536_HNSW32,PQ64
+  train_sample: 2000000
+  merge: ondisk
+
+eval:
+  benchmark: coir-csn
+  ks: [1, 5, 10, 100]

@@ -1,0 +1,42 @@
+# preCal core dependencies (Linux + CUDA execution target; authored on macOS).
+#
+# Heavy / engine-specific libs are imported lazily in the code so the package
+# imports clean even when a given engine's deps are absent. Versions are pinned
+# where the spec calls out an exact version; others use compatible lower bounds.
+#
+# GPU note: faiss-cpu is the v1 default for index build (sm_120 faiss-gpu on
+# DAIC is unconfirmed). For a GPU index build, swap to a conda-forge
+# faiss-gpu-raft build or a source build with sm_120 support (see DESIGN.md).
+# TEI itself is NOT a pip dep: it runs from the apptainer SIF
+# (ghcr.io/huggingface/text-embeddings-inference:120-1.9). The TEI engine here
+# only needs `requests` to talk to the replicas.
+
+# --- config / data / schema (always needed) ---
+pydantic>=2.6,<3
+pyyaml>=6.0
+numpy>=1.26,<3
+pyarrow>=15.0
+tqdm>=4.66
+requests>=2.31
+
+# --- HF staging + publish ---
+huggingface_hub>=0.25
+datasets>=2.20
+
+# --- chunking (CPU stage) ---
+tree-sitter-language-pack==1.8.1   # MIT, 305 langs, py>=3.10 (spec-pinned)
+tree-sitter>=0.21                  # runtime required by the language pack
+
+# --- model / tokenizer (token counting + reference engine) ---
+transformers>=4.51                 # Qwen3 architecture support
+sentence-transformers>=3.0         # reference engine only (eval ground-truth)
+
+# --- FAISS index build (v1 default: CPU) ---
+faiss-cpu>=1.8.0
+
+# --- eval ---
+mteb>=1.14                         # CoIR-CSN protocol cross-check (optional path)
+
+# --- optional fallback engines (uncomment to install on the relevant node) ---
+# infinity-emb[all]>=0.0.70        # engine.name=infinity (bf16, in-process)
+# vllm>=0.6.0                       # engine.name=vllm (pooling runner; sm_120 build)

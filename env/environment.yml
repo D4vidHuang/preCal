@@ -1,0 +1,45 @@
+# ---------------------------------------------------------------------------
+# preCal :: conda/mamba environment (Linux + CUDA, DAIC)
+# ---------------------------------------------------------------------------
+# Used for the NON-CONTAINER stages: chunking (tree-sitter), sharding, FAISS
+# index build, eval (mteb), and HF publish. The GPU EMBED step runs inside the
+# TEI sm_120 container (engine=tei), so this env does NOT need torch+sm_120
+# kernels for production embedding — torch here is only for the
+# infinity/vllm/sentence_transformers fallback + reference engines and for eval.
+#
+# Create:   bash scripts/setup_env.sh
+#   (or)    mamba env create -f env/environment.yml
+#
+# NOTE on pins: versions match requirements.txt (owned by the core engineer).
+# tree-sitter-language-pack==1.8.1 (py>=3.10) and faiss are the load-bearing pins.
+# faiss-gpu sm_120 on DAIC is UNCONFIRMED (open question) -> default to faiss-cpu;
+# see scripts/setup_env.sh --faiss-gpu for the conda-forge GPU attempt.
+# ---------------------------------------------------------------------------
+name: precal
+channels:
+  - conda-forge
+  - pytorch
+  - nvidia
+dependencies:
+  - python=3.11
+  - pip
+  - faiss-cpu=1.8.0           # canonical index build/merge; GPU variant attempted separately
+  - numpy>=1.26,<2.1
+  - pyarrow>=15
+  - pyyaml>=6
+  - tqdm
+  - requests
+  - curl                      # used by launch_tei_replicas.sh /health probe
+  - git-lfs
+  - pip:
+      - huggingface_hub>=0.24
+      - hf_transfer            # accelerates staged download/upload on login nodes
+      - datasets>=2.20
+      - transformers>=4.51     # Qwen3-Embedding support
+      - sentence-transformers>=3.0   # reference engine for eval ground-truth deltas
+      - mteb>=1.14             # CoIR-CSN eval protocol
+      - tree-sitter-language-pack==1.8.1
+      - pydantic>=2.7
+      # --- fallback embedding engines (optional; TEI is the production path) ---
+      # - infinity-emb[all]    # michaelfeil/infinity embedded engine (bf16)
+      # - vllm                 # --runner pooling fallback; needs a sm_120-capable build
