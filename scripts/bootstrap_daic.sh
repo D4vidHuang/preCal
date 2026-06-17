@@ -43,7 +43,8 @@ then
   cat <<'EOF'
 
 [bootstrap] STOP: cannot access bigcode/the-stack-dedup. Do ONE of these, then re-run:
-   a) no token on this node?   ->  huggingface-cli login
+   a) no token on this node?   ->  source scripts/activate_env.sh && huggingface-cli login
+                                    (sourcing first puts the token on scratch, not the full $HOME)
    b) not accepted the terms?  ->  open https://huggingface.co/datasets/bigcode/the-stack-dedup
                                     and click "Agree and access repository" (~10s)
    re-run:  bash scripts/bootstrap_daic.sh

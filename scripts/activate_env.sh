@@ -18,22 +18,12 @@ if [[ -f "${HOME}/.precal.env" ]]; then
   source "${HOME}/.precal.env"
 fi
 
-# ------------------------------ PATHS --------------------------------------
-# PRECAL_SCRATCH: shared scratch root. DAIC specifics are UNCONFIRMED
-# (see openQuestions + scripts/daic_probe.sh). Common DAIC candidates, in order:
-#   /tudelft.net/staff-umbrella/<project>   (shared project scratch)
-#   /scratch/${USER}                        (shared scratch)
-#   ${TMPDIR}                               (per-node /tmp, NOT shared — avoid for staging)
-if [[ -z "${PRECAL_SCRATCH:-}" ]]; then
-  for cand in "/tudelft.net/staff-umbrella/precal" "/scratch/${USER}/precal" "${HOME}/precal-scratch"; do
-    if [[ -d "$(dirname "$cand")" ]]; then PRECAL_SCRATCH="$cand"; break; fi
-  done
-  : "${PRECAL_SCRATCH:=${HOME}/precal-scratch}"
-fi
-export PRECAL_SCRATCH
-export PRECAL_HF_HOME="${PRECAL_HF_HOME:-${PRECAL_SCRATCH}/hf}"
-export PRECAL_TEI_SIF="${PRECAL_TEI_SIF:-${PRECAL_SCRATCH}/tei_120-1.9.sif}"
-export HF_HOME="${PRECAL_HF_HOME}"
+# ------------------------------ PATHS + CACHES -----------------------------
+# Resolve PRECAL_SCRATCH (off the tiny $HOME quota) and redirect every uv/pip/HF
+# cache onto the big shared disk. Single source of truth: scripts/_paths.sh.
+_PRECAL_REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# shellcheck source=/dev/null
+source "${_PRECAL_REPO}/scripts/_paths.sh"
 
 # LOCKED CONTRACT (D1): the manifests dir is namespaced by run.name
 # (${PRECAL_SCRATCH}/<run.name>/manifests, matching precal.config's
@@ -62,12 +52,7 @@ if command -v module >/dev/null 2>&1; then
 fi
 
 # ------------------------- PYTHON ENV (uv venv; conda fallback) -------------
-# Repo-local .venv by default (on the shared FS, so compute nodes activate it too).
-_PRECAL_REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-export PRECAL_VENV="${PRECAL_VENV:-${_PRECAL_REPO}/.venv}"
-# Make a user-installed uv reachable for any `uv` calls in helper scripts.
-export PATH="${HOME}/.local/bin:${HOME}/.cargo/bin:${PATH}"
-
+# PRECAL_VENV (default <repo>/.venv on the shared FS) is set by scripts/_paths.sh.
 if [[ -f "${PRECAL_VENV}/bin/activate" ]]; then
   # shellcheck source=/dev/null
   source "${PRECAL_VENV}/bin/activate"

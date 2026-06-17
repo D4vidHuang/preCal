@@ -33,21 +33,20 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-# Honor any user overrides (PRECAL_VENV, PRECAL_SCRATCH) without activating an env
-# that does not exist yet.
+# Honor user overrides, then resolve PRECAL_SCRATCH + redirect ALL uv/pip/HF
+# caches onto the big shared disk (DAIC $HOME has a tiny quota). _paths.sh sets
+# PRECAL_SCRATCH, PRECAL_VENV, UV_INSTALL_DIR, UV_CACHE_DIR, UV_PYTHON_INSTALL_DIR, …
 [[ -f "${HOME}/.precal.env" ]] && source "${HOME}/.precal.env"
-: "${PRECAL_VENV:=${REPO_ROOT}/.venv}"
+_PRECAL_REPO="${REPO_ROOT}"
+# shellcheck source=/dev/null
+source "${REPO_ROOT}/scripts/_paths.sh"
 
 # --------------------------------------------------------------------------- uv
 ensure_uv() {
   command -v uv >/dev/null 2>&1 && return 0
-  export PATH="${HOME}/.local/bin:${HOME}/.cargo/bin:${PATH}"
-  command -v uv >/dev/null 2>&1 && return 0
-  echo "[setup_env] uv not found — installing (needs internet; run on a login node)…"
-  if curl -LsSf https://astral.sh/uv/install.sh | sh; then :; \
-  elif command -v python3 >/dev/null 2>&1 && python3 -m pip install --user uv; then :; \
-  else return 1; fi
-  export PATH="${HOME}/.local/bin:${HOME}/.cargo/bin:${PATH}"
+  echo "[setup_env] uv not found — installing to ${UV_INSTALL_DIR} (needs internet; login node)…"
+  # UV_INSTALL_DIR (scratch) + UV_NO_MODIFY_PATH keep the install OFF the $HOME quota.
+  curl -LsSf https://astral.sh/uv/install.sh | sh || return 1
   command -v uv >/dev/null 2>&1
 }
 

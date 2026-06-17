@@ -76,15 +76,12 @@ if command -v sacctmgr >/dev/null 2>&1; then
   [[ -n "$ACCOUNT" ]] && note "account: ${ACCOUNT}" || note "no explicit account association (likely not required)"
 fi
 
-# --- 5. scratch root ----------------------------------------------------------
-SCRATCH="${PRECAL_SCRATCH:-}"
-if [[ -z "$SCRATCH" ]]; then
-  for cand in "/tudelft.net/staff-umbrella/${USER}/precal" "/scratch/${USER}/precal" "${HOME}/precal-scratch"; do
-    if [[ -d "$(dirname "$cand")" ]]; then SCRATCH="$cand"; break; fi
-  done
-  : "${SCRATCH:=${HOME}/precal-scratch}"
-fi
-note "scratch root: ${SCRATCH}  (edit ${ENVFILE} if you have a bigger project scratch)"
+# --- 5. scratch root (derived off the repo location, never $HOME) -------------
+_PRECAL_REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# shellcheck source=/dev/null
+source "${_PRECAL_REPO}/scripts/_paths.sh"
+SCRATCH="${PRECAL_SCRATCH}"
+note "scratch root: ${SCRATCH}  (on the shared disk, off the \$HOME quota; override in ${ENVFILE})"
 
 # --- 6. emit ------------------------------------------------------------------
 BLOCK="$(cat <<EOF
