@@ -1,72 +1,109 @@
 #!/bin/bash
 # ---------------------------------------------------------------------------
-# preCal :: create the conda/mamba environment
+# preCal :: create the Python environment  (uv-first; conda fallback)
 # ---------------------------------------------------------------------------
-#   bash scripts/setup_env.sh                 # create env 'precal' from env/environment.yml
-#   bash scripts/setup_env.sh --update        # update an existing env
-#   bash scripts/setup_env.sh --faiss-gpu     # attempt conda-forge faiss-gpu (sm_120 unconfirmed)
-#   bash scripts/setup_env.sh --name myenv     # custom env name
+#   bash scripts/setup_env.sh             # uv venv (.venv) + install requirements.txt
+#   bash scripts/setup_env.sh --update    # re-sync deps into the existing env
+#   bash scripts/setup_env.sh --python 3.11
+#   bash scripts/setup_env.sh --conda     # force the legacy conda path (env/environment.yml)
 #
-# The PRODUCTION embed engine is the TEI sm_120 CONTAINER (pulled by
-# scripts/pull_image.sh), NOT this conda env — so this env intentionally avoids
-# pinning torch to a fragile sm_120 wheel. It covers chunking / sharding / FAISS /
-# eval / publish. See env/environment.yml for the pins and DESIGN.md for the
-# apptainer-vs-conda split.
+# DAIC has no conda -> uv is the default. uv manages its own Python, so NO module
+# system is required. The GPU EMBED step runs inside the TEI sm_120 CONTAINER, not
+# this env; this env covers chunking / sharding / FAISS / eval / publish (+ the
+# reference engines). venv lives at $PRECAL_VENV (default <repo>/.venv) on the
+# shared filesystem, so compute nodes can activate it too.
 # ---------------------------------------------------------------------------
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-ENV_FILE="${REPO_ROOT}/env/environment.yml"
-ENV_NAME="${PRECAL_ENV_NAME:-precal}"
+REQ="${REPO_ROOT}/requirements.txt"
+PYVER="3.11"
 DO_UPDATE=0
+FORCE_CONDA=0
 DO_FAISS_GPU=0
-
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --update) DO_UPDATE=1; shift ;;
-    --faiss-gpu) DO_FAISS_GPU=1; shift ;;
-    --name) ENV_NAME="$2"; shift 2 ;;
-    -h|--help) sed -n '2,20p' "$0"; exit 0 ;;
+    --update)     DO_UPDATE=1; shift ;;
+    --conda)      FORCE_CONDA=1; shift ;;
+    --faiss-gpu)  DO_FAISS_GPU=1; shift ;;
+    --python)     PYVER="$2"; shift 2 ;;
+    --name)       PRECAL_ENV_NAME="$2"; shift 2 ;;   # conda path only
+    -h|--help)    sed -n '2,16p' "$0"; exit 0 ;;
     *) echo "setup_env.sh: unknown arg '$1'" >&2; exit 2 ;;
   esac
 done
 
-# Load a conda/mamba provider via modules if present (DAIC), else assume on PATH.
+# Honor any user overrides (PRECAL_VENV, PRECAL_SCRATCH) without activating an env
+# that does not exist yet.
+[[ -f "${HOME}/.precal.env" ]] && source "${HOME}/.precal.env"
+: "${PRECAL_VENV:=${REPO_ROOT}/.venv}"
+
+# --------------------------------------------------------------------------- uv
+ensure_uv() {
+  command -v uv >/dev/null 2>&1 && return 0
+  export PATH="${HOME}/.local/bin:${HOME}/.cargo/bin:${PATH}"
+  command -v uv >/dev/null 2>&1 && return 0
+  echo "[setup_env] uv not found — installing (needs internet; run on a login node)…"
+  if curl -LsSf https://astral.sh/uv/install.sh | sh; then :; \
+  elif command -v python3 >/dev/null 2>&1 && python3 -m pip install --user uv; then :; \
+  else return 1; fi
+  export PATH="${HOME}/.local/bin:${HOME}/.cargo/bin:${PATH}"
+  command -v uv >/dev/null 2>&1
+}
+
+if [[ "${FORCE_CONDA}" -eq 0 ]] && ensure_uv; then
+  echo "[setup_env] uv $(uv --version 2>/dev/null | awk '{print $2}')  venv=${PRECAL_VENV}  python=${PYVER}"
+  mkdir -p "$(dirname "${PRECAL_VENV}")"
+  if [[ ! -d "${PRECAL_VENV}" ]]; then
+    uv venv "${PRECAL_VENV}" --python "${PYVER}"
+  else
+    echo "[setup_env] venv exists (use --update to re-sync deps)."
+  fi
+  [[ -d "${PRECAL_VENV}" ]] || { echo "[setup_env] FATAL: venv create failed"; exit 3; }
+
+  STAMP="${PRECAL_VENV}/.precal-deps-ok"
+  if [[ ! -f "${STAMP}" || "${DO_UPDATE}" -eq 1 ]]; then
+    echo "[setup_env] installing requirements via uv (this pulls torch for the reference engine; a few min)…"
+    # hf_transfer accelerates staged download/upload on login nodes.
+    uv pip install --python "${PRECAL_VENV}/bin/python" -r "${REQ}" hf_transfer
+    touch "${STAMP}"
+  else
+    echo "[setup_env] deps already installed (stamp ${STAMP}); pass --update to refresh."
+  fi
+  [[ "${DO_FAISS_GPU}" -eq 1 ]] && \
+    echo "[setup_env] NOTE: faiss-gpu is conda-only; the uv path stays on faiss-cpu (index build still works)."
+  echo "[setup_env] done."
+  echo "[setup_env] activate with:  source scripts/activate_env.sh   (sources ${PRECAL_VENV})"
+  echo "[setup_env] APPTAINER note: the GPU embed engine runs from the TEI SIF, not this venv:"
+  echo "[setup_env]   bash scripts/pull_image.sh"
+  exit 0
+fi
+
+# ------------------------------------------------------------------ conda fallback
+echo "[setup_env] uv unavailable or --conda forced → legacy conda/mamba path."
+ENV_FILE="${REPO_ROOT}/env/environment.yml"
+ENV_NAME="${PRECAL_ENV_NAME:-precal}"
 if command -v module >/dev/null 2>&1; then
   module load 2>/dev/null miniconda3 || module load 2>/dev/null anaconda3 || true
 fi
-
 CONDA_BIN=""
 if command -v mamba >/dev/null 2>&1; then CONDA_BIN=mamba
 elif command -v conda >/dev/null 2>&1; then CONDA_BIN=conda
 else
-  echo "setup_env.sh: no conda/mamba found. Load a module (scripts/daic_probe.sh) or install miniforge." >&2
+  echo "setup_env.sh: neither uv nor conda/mamba available." >&2
+  echo "  Install uv:  curl -LsSf https://astral.sh/uv/install.sh | sh" >&2
   exit 3
 fi
-echo "[setup_env] using ${CONDA_BIN}; env name='${ENV_NAME}'; file=${ENV_FILE}"
-
-# Create or update.
+echo "[setup_env] using ${CONDA_BIN}; env='${ENV_NAME}'; file=${ENV_FILE}"
 if "${CONDA_BIN}" env list | awk '{print $1}' | grep -qx "${ENV_NAME}"; then
-  if [[ "${DO_UPDATE}" -eq 1 ]]; then
-    echo "[setup_env] updating existing env '${ENV_NAME}'"
-    "${CONDA_BIN}" env update -n "${ENV_NAME}" -f "${ENV_FILE}" --prune
-  else
-    echo "[setup_env] env '${ENV_NAME}' already exists (use --update to refresh)."
-  fi
+  [[ "${DO_UPDATE}" -eq 1 ]] && "${CONDA_BIN}" env update -n "${ENV_NAME}" -f "${ENV_FILE}" --prune \
+    || echo "[setup_env] env '${ENV_NAME}' exists (use --update to refresh)."
 else
-  echo "[setup_env] creating env '${ENV_NAME}'"
   "${CONDA_BIN}" env create -n "${ENV_NAME}" -f "${ENV_FILE}"
 fi
-
-# Optional faiss-gpu attempt (UNCONFIRMED on DAIC sm_120 — see open questions).
 if [[ "${DO_FAISS_GPU}" -eq 1 ]]; then
-  echo "[setup_env] attempting faiss-gpu (conda-forge). sm_120 support is UNCONFIRMED; falls back to faiss-cpu if it fails."
   "${CONDA_BIN}" install -n "${ENV_NAME}" -c conda-forge -c pytorch -c nvidia faiss-gpu-raft 2>/dev/null \
     || "${CONDA_BIN}" install -n "${ENV_NAME}" -c pytorch -c nvidia faiss-gpu 2>/dev/null \
-    || echo "[setup_env] WARN: faiss-gpu install failed; staying on faiss-cpu (index build still works)."
+    || echo "[setup_env] WARN: faiss-gpu install failed; staying on faiss-cpu."
 fi
-
-echo "[setup_env] done."
-echo "[setup_env] Activate with: source scripts/activate_env.sh   (sets PRECAL_* + activates '${ENV_NAME}')"
-echo "[setup_env] APPTAINER note: the GPU embed engine runs from the TEI SIF, not this env."
-echo "[setup_env]   pull it on a login node:  bash scripts/pull_image.sh"
+echo "[setup_env] done. Activate: source scripts/activate_env.sh"

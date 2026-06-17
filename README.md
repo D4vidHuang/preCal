@@ -111,8 +111,8 @@ export PRECAL_SCRATCH=/tudelft.net/staff-umbrella/<your-project>/precal   # conf
 EOF
 
 bash scripts/daic_probe.sh        # discover partitions / gres / quotas / modules
-bash scripts/setup_env.sh         # create the 'precal' conda/mamba env
-source scripts/activate_env.sh    # sets PRECAL_*, loads modules, activates env
+bash scripts/setup_env.sh         # create the uv venv (.venv) + install requirements
+source scripts/activate_env.sh    # sets PRECAL_*, loads CUDA/container modules, activates .venv
 ```
 
 Then edit the `PLACEHOLDER` `#SBATCH --partition/--gres/--constraint` lines in
@@ -170,7 +170,7 @@ Re-running `make embed` / `make index` is always safe: the controller
 
 ```
 make help          # list targets
-make env           # create/update conda env
+make env           # create/update the uv venv (.venv)
 make image         # pull the TEI sm_120 SIF (login node)
 make probe         # DAIC discovery (scripts/daic_probe.sh)
 make check         # pre-flight: sm_120 kernels, GPU, offline vars, scratch
@@ -219,7 +219,7 @@ license redistribution policy. Parquet rows link to their vector via
 slurm/         stage / shard / embed / index / merge_index / eval / publish sbatch jobs
 scripts/       activate_env, setup_env, daic_probe, check_env, pull_image,
                launch_tei_replicas, resubmit_pending, smoke, cfg.py
-env/           environment.yml (conda/mamba)
+env/           environment.yml (legacy conda fallback; default env is uv .venv)
 configs/       default.yaml / smoke.yaml / full_v1.yaml      (owned by core)
 precal/        the pipeline package + CLI                    (owned by core)
 Makefile, README.md, DESIGN.md, .gitignore

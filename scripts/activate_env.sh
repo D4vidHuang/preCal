@@ -51,35 +51,42 @@ mkdir -p "${PRECAL_SCRATCH}" "${PRECAL_HF_HOME}" 2>/dev/null || true
 # ------------------------------ MODULES ------------------------------------
 # DAIC uses Lmod/environment-modules. Names are PLACEHOLDERS — confirm with
 # `module avail` (scripts/daic_probe.sh). Failures are non-fatal so local/dev
-# (macOS, no module system) still works.
+# (macOS, no module system) still works. NOTE: the Python env is uv (no conda),
+# so we only try CUDA + container modules here.
 if command -v module >/dev/null 2>&1; then
   module purge 2>/dev/null || true
   # CUDA toolkit for any non-container GPU step (TEI brings its own runtime).
   module load 2>/dev/null cuda/12.6 || module load 2>/dev/null cuda || true
   # Container runtime for the TEI SIF.
   module load 2>/dev/null apptainer || module load 2>/dev/null singularity || true
-  # conda/mamba provider.
-  module load 2>/dev/null miniconda3 || module load 2>/dev/null anaconda3 || true
 fi
 
-# ------------------------------ CONDA / MAMBA ------------------------------
-PRECAL_ENV_NAME="${PRECAL_ENV_NAME:-precal}"
-_conda_base=""
-if command -v conda >/dev/null 2>&1; then
-  _conda_base="$(conda info --base 2>/dev/null || true)"
-elif command -v mamba >/dev/null 2>&1; then
-  _conda_base="$(mamba info --base 2>/dev/null || true)"
-fi
-if [[ -n "${_conda_base}" && -f "${_conda_base}/etc/profile.d/conda.sh" ]]; then
+# ------------------------- PYTHON ENV (uv venv; conda fallback) -------------
+# Repo-local .venv by default (on the shared FS, so compute nodes activate it too).
+_PRECAL_REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+export PRECAL_VENV="${PRECAL_VENV:-${_PRECAL_REPO}/.venv}"
+# Make a user-installed uv reachable for any `uv` calls in helper scripts.
+export PATH="${HOME}/.local/bin:${HOME}/.cargo/bin:${PATH}"
+
+if [[ -f "${PRECAL_VENV}/bin/activate" ]]; then
   # shellcheck source=/dev/null
-  source "${_conda_base}/etc/profile.d/conda.sh"
-  if conda activate "${PRECAL_ENV_NAME}" 2>/dev/null; then
-    echo "[activate_env] conda env '${PRECAL_ENV_NAME}' active (python: $(command -v python))"
-  else
-    echo "[activate_env] WARN: could not activate '${PRECAL_ENV_NAME}' — run scripts/setup_env.sh"
-  fi
+  source "${PRECAL_VENV}/bin/activate"
+  echo "[activate_env] uv venv active: ${PRECAL_VENV} (python: $(command -v python))"
 else
-  echo "[activate_env] WARN: no conda/mamba found; relying on ambient python ($(command -v python || echo none))"
+  # Legacy conda/mamba fallback (only if someone built that instead).
+  PRECAL_ENV_NAME="${PRECAL_ENV_NAME:-precal}"
+  _conda_base=""
+  if command -v conda >/dev/null 2>&1; then _conda_base="$(conda info --base 2>/dev/null || true)"
+  elif command -v mamba >/dev/null 2>&1; then _conda_base="$(mamba info --base 2>/dev/null || true)"; fi
+  if [[ -n "${_conda_base}" && -f "${_conda_base}/etc/profile.d/conda.sh" ]]; then
+    # shellcheck source=/dev/null
+    source "${_conda_base}/etc/profile.d/conda.sh"
+    conda activate "${PRECAL_ENV_NAME}" 2>/dev/null \
+      && echo "[activate_env] conda env '${PRECAL_ENV_NAME}' active (python: $(command -v python))" \
+      || echo "[activate_env] WARN: could not activate '${PRECAL_ENV_NAME}' — run scripts/setup_env.sh"
+  else
+    echo "[activate_env] WARN: no uv venv at ${PRECAL_VENV} and no conda — run scripts/setup_env.sh (python: $(command -v python || echo none))"
+  fi
 fi
 
 # ------------------------------ HF / RUNTIME -------------------------------

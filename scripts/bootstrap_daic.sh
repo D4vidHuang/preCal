@@ -19,7 +19,7 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"; cd "$REPO_ROOT"
 say() { printf '\n\033[1;35m== %s ==\033[0m\n' "$*"; }
 
-say "1/6  conda env"
+say "1/6  Python env (uv)"
 bash scripts/setup_env.sh
 
 say "2/6  auto-detect DAIC GPU/partition -> ~/.precal.env"

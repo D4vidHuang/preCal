@@ -32,7 +32,7 @@ help:  ## Show this help
 	  awk 'BEGIN{FS=":.*?## "}{printf "  \033[36m%-14s\033[0m %s\n",$$1,$$2}'
 
 # --------------------------- setup -----------------------------------------
-env:   ## Create/update the conda env (env/environment.yml)
+env:   ## Create/update the Python env via uv (.venv); --conda for the legacy path
 	bash scripts/setup_env.sh
 
 image: ## Pull the TEI sm_120 SIF (login node, online)
