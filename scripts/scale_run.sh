@@ -62,11 +62,23 @@ while read -r RN LANGS _rest; do
     touch "${STATE}/${RN}.staged"
   fi
 
-  # 2) CHUNK + SHARD (CPU). Per-lang chunk then global consolidate into this run's manifest.
+  # 2) CHUNK (parallel CPU jobs, one per language — NOT inline on the login node)
+  #    then a single global shard consolidation into this run's manifest.
   if [[ ! -f "${STATE}/${RN}.sharded" ]]; then
-    for L in $LANGS_SP; do echo "[$RN] chunk $L"; $PY chunk --config "$CONFIG" --language "$L" || exit 5; done
-    for L in $LANGS_SP; do echo "[$RN] shard $L"; $PY shard --config "$CONFIG" --language "$L" || exit 5; done
-    $PY shard --config "$CONFIG" || exit 5
+    CJIDS=""
+    for L in $LANGS_SP; do
+      jid=$(sbatch --parsable --partition=all --account=testusers --cpus-per-task=2 --mem=16G --time=3:00:00 \
+        --job-name="chunk-${RN}-${L}" --output="${PRECAL_SCRATCH}/logs/chunk-${RN}-${L}.out" \
+        --error="${PRECAL_SCRATCH}/logs/chunk-${RN}-${L}.err" \
+        --wrap="cd ${REPO_ROOT} && source scripts/activate_env.sh && export PRECAL_RUN_NAME='${RN}' HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 && python -m precal.cli chunk --config ${CONFIG} --language ${L}")
+      CJIDS="${CJIDS:+${CJIDS},}${jid}"
+      echo "[$RN] chunk ${L} -> job ${jid}"
+    done
+    while squeue --me -h -j "$CJIDS" 2>/dev/null | grep -q .; do sleep 45; done
+    for L in $LANGS_SP; do
+      ls "${RUNDIR}/chunks/lang=${L}"/*.parquet >/dev/null 2>&1 || { echo "[$RN] CHUNK FAILED for ${L} (see chunk-${RN}-${L}.err)"; exit 5; }
+    done
+    $PY shard --config "$CONFIG" || exit 5     # global consolidation -> manifest.jsonl
     touch "${STATE}/${RN}.sharded"
   fi
 
