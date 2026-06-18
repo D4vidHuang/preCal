@@ -40,11 +40,15 @@ export UV_CACHE_DIR="${PRECAL_SCRATCH}/cache/uv"        # wheels/build cache (to
 export UV_PYTHON_INSTALL_DIR="${PRECAL_SCRATCH}/share/uv/python"
 export PIP_CACHE_DIR="${PRECAL_SCRATCH}/cache/pip"
 export UV_NO_MODIFY_PATH=1                              # don't touch ~/.bashrc
-# apptainer/singularity blob+build caches and tmp (default ~/.cache/apptainer = $HOME).
-export APPTAINER_CACHEDIR="${PRECAL_SCRATCH}/cache/apptainer"
-export APPTAINER_TMPDIR="${PRECAL_SCRATCH}/tmp"
-export SINGULARITY_CACHEDIR="${PRECAL_SCRATCH}/cache/apptainer"
-export SINGULARITY_TMPDIR="${PRECAL_SCRATCH}/tmp"
+# apptainer needs chmod, which the staff-umbrella network FS FORBIDS, and its
+# default cache is ~/.cache/apptainer ($HOME quota). Use a node-local, chmod-capable
+# disk (/tmp) for its cache + build tmp; the finished SIF is copied to scratch
+# separately (a plain file). Node-local on EVERY node (login + compute).
+_PRECAL_LOCAL_TMP="${TMPDIR:-/tmp}/${USER:-precal}"
+export APPTAINER_CACHEDIR="${_PRECAL_LOCAL_TMP}/apptainer-cache"
+export APPTAINER_TMPDIR="${_PRECAL_LOCAL_TMP}/apptainer-tmp"
+export SINGULARITY_CACHEDIR="${APPTAINER_CACHEDIR}"
+export SINGULARITY_TMPDIR="${APPTAINER_TMPDIR}"
 # Repo-local venv (repo is on the big disk too); override with PRECAL_VENV.
 export PRECAL_VENV="${PRECAL_VENV:-${_PRECAL_REPO}/.venv}"
 
@@ -53,5 +57,5 @@ export PATH="${PRECAL_SCRATCH}/bin:${HOME}/.local/bin:${HOME}/.cargo/bin:${PATH}
 
 mkdir -p "${PRECAL_SCRATCH}" "${PRECAL_HF_HOME}" "${UV_INSTALL_DIR}" \
          "${UV_CACHE_DIR}" "${UV_PYTHON_INSTALL_DIR}" "${XDG_DATA_HOME}" \
-         "${XDG_CACHE_HOME}" "${XDG_CONFIG_HOME}" "${PIP_CACHE_DIR}" \
-         "${APPTAINER_CACHEDIR}" "${APPTAINER_TMPDIR}" 2>/dev/null || true
+         "${XDG_CACHE_HOME}" "${XDG_CONFIG_HOME}" "${PIP_CACHE_DIR}" 2>/dev/null || true
+mkdir -p "${APPTAINER_CACHEDIR}" "${APPTAINER_TMPDIR}" 2>/dev/null || true   # node-local

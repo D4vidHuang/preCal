@@ -54,8 +54,15 @@ else
   exit 3
 fi
 
-TMP_SIF="${SIF}.tmp.$$"
-echo "[pull_image] using ${RUNTIME} -> pulling to ${TMP_SIF}"
-"${RUNTIME}" pull --force "${TMP_SIF}" "docker://${IMAGE}"
-mv -f "${TMP_SIF}" "${SIF}"      # atomic publish of the final SIF
+# Build on a node-local, chmod-capable disk (APPTAINER_TMPDIR, set by _paths.sh to
+# /tmp/$USER/...). The staff-umbrella network FS forbids chmod, which breaks
+# apptainer's cache/build. --disable-cache avoids a persistent OCI cache entirely.
+# Then copy the finished SIF (a plain file) onto scratch.
+mkdir -p "${APPTAINER_TMPDIR}"
+LOCAL_SIF="${APPTAINER_TMPDIR}/$(basename "${SIF}").build.$$"
+echo "[pull_image] using ${RUNTIME} --disable-cache -> building (node-local) ${LOCAL_SIF}"
+"${RUNTIME}" pull --disable-cache --force "${LOCAL_SIF}" "docker://${IMAGE}"
+echo "[pull_image] copying SIF onto scratch: ${SIF}"
+cp -f "${LOCAL_SIF}" "${SIF}.tmp.$$" && mv -f "${SIF}.tmp.$$" "${SIF}"   # rename = no chmod
+rm -f "${LOCAL_SIF}"
 echo "[pull_image] done: ${SIF}"
