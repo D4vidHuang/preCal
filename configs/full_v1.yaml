@@ -6,10 +6,10 @@ run:
 
 corpus:
   languages: [python, java, javascript, php, go, ruby]  # full 6-lang slice
-  max_files_per_lang: 0                 # no cap (or set a cap to hit ~3-5M files)
+  max_files_per_lang: 100000            # v1 cap to fit CoReFusion scratch (~143G); tunable
 
 shard:
-  target_chunks: 250000
+  target_chunks: 50000                  # ~3-4 shards/lang -> good 8-GPU array parallelism
 
 model:
   id: Qwen/Qwen3-Embedding-4B
@@ -23,8 +23,8 @@ engine:
   max_batch_tokens: 16384
 
 index:
-  factory_full: OPQ64_256,IVF65536_HNSW32,PQ64
-  train_sample: 2000000
+  factory_full: OPQ64_256,IVF4096,PQ64  # nlist sized for ~1M vectors (v1 cap); IVF65536 was for 15-40M
+  train_sample: 2000000                  # code clamps to N available
   merge: ondisk
 
 eval:
