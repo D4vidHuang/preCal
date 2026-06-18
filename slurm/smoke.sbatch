@@ -16,7 +16,7 @@
 # ---------------------------------------------------------------------------
 #SBATCH --partition=general          # PLACEHOLDER — overridden by submit.sh (PRECAL_PARTITION)
 #SBATCH --gres=gpu:1                 # PLACEHOLDER — overridden by submit.sh (PRECAL_GPU_TYPE)
-#SBATCH --constraint=blackwell       # PLACEHOLDER — overridden by submit.sh (PRECAL_CONSTRAINT)
+# (no --constraint: the gres gpu:nvidia_rtx_pro_6000 already pins the card; submit.sh injects --constraint only if PRECAL_CONSTRAINT is set)
 #SBATCH --cpus-per-task=12
 #SBATCH --mem=64G
 #SBATCH --time=04:00:00

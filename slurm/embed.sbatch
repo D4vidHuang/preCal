@@ -28,7 +28,7 @@
 #   are NOT documented and MUST be discovered with scripts/daic_probe.sh, then pasted here.
 #SBATCH --partition=general              # PLACEHOLDER: confirm the GPU partition (daic_probe.sh: sinfo)
 #SBATCH --gres=gpu:1                     # PLACEHOLDER: pin the card type, e.g. gpu:rtx_pro_6000:1
-#SBATCH --constraint=blackwell           # PLACEHOLDER: RTX Pro 6000 feature, e.g. blackwell / gpumem96 / sm_120
+# (no --constraint: the gres gpu:nvidia_rtx_pro_6000 already pins the card; submit.sh injects --constraint only if PRECAL_CONSTRAINT is set)
 #SBATCH --cpus-per-task=12
 #SBATCH --mem=96G
 #SBATCH --time=24:00:00
