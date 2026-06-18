@@ -112,9 +112,14 @@ if [[ "${ENGINE}" == "tei" ]]; then
       --sif "${SIF_PATH}"
   mapfile -t TEI_PIDS < "$TEI_PID_FILE"
   rm -f "$TEI_PID_FILE"
-  # The embed driver discovers ports BASE_PORT..BASE_PORT+REPLICAS-1.
+  # Tell the driver the EXACT endpoints (client honors PRECAL_TEI_ENDPOINTS) so it
+  # uses the SAME unique ports we launched on, never the default 7997 (which both
+  # mismatches the offset launch AND collides when 2 tasks share a node).
   export PRECAL_TEI_BASE_PORT="${BASE_PORT}"
   export PRECAL_TEI_REPLICAS="${REPLICAS}"
+  EPS=""; for ((p=BASE_PORT; p<BASE_PORT+REPLICAS; p++)); do EPS="${EPS:+$EPS,}http://127.0.0.1:$p"; done
+  export PRECAL_TEI_ENDPOINTS="$EPS"
+  echo "[embed] PRECAL_TEI_ENDPOINTS=${PRECAL_TEI_ENDPOINTS}"
 fi
 
 # ------------------------------ SIGNAL TRAP --------------------------------
