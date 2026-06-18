@@ -86,11 +86,8 @@ class TEIEmbedder(Embedder):
             self._session = requests.Session()
         return self._session
 
-    def _post_embed(self, texts: List[str]) -> np.ndarray:
-        """POST one batch to the next replica's /embed endpoint."""
-        import requests  # lazy (for exception types)
-
-        endpoint = next(self._rr)
+    def _post_embed(self, endpoint: str, texts: List[str]) -> np.ndarray:
+        """POST one batch to a SPECIFIC replica's /embed endpoint."""
         url = f"{endpoint}/embed"
         # TEI rejects empty/whitespace inputs with 400; substitute a single space so
         # a degenerate item still yields a (throwaway) vector and the batch stays 1:1
@@ -109,10 +106,21 @@ class TEIEmbedder(Embedder):
         texts = list(texts)
         if not texts:
             return np.zeros((0, self.embed_dim), dtype=np.float32)
-        out: List[np.ndarray] = []
-        for i in range(0, len(texts), self.batch_size):
-            batch = texts[i : i + self.batch_size]
-            out.append(self._post_embed(batch))
+        bs = self.batch_size
+        batches = [texts[i : i + bs] for i in range(0, len(texts), bs)]
+        n_ep = len(self.endpoints)
+        # Fan sub-batches across ALL replicas CONCURRENTLY (one in-flight POST per
+        # replica), keeping every GPU replica busy. Endpoint chosen by index so the
+        # threads don't race on a shared round-robin. Order preserved by index.
+        def _work(item):
+            idx, batch = item
+            return self._post_embed(self.endpoints[idx % n_ep], batch)
+        if n_ep > 1 and len(batches) > 1:
+            from concurrent.futures import ThreadPoolExecutor
+            with ThreadPoolExecutor(max_workers=n_ep) as ex:
+                out = list(ex.map(_work, enumerate(batches)))
+        else:
+            out = [_work((i, b)) for i, b in enumerate(batches)]
         return np.vstack(out)
 
     def close(self) -> None:

@@ -228,10 +228,12 @@ def embed_shard(
             since_ckpt = 0
             ckpt = max(1, cfg.embed.checkpoint_every)
             pending_ids: List[str] = []
-            bs = cfg.engine.batch_size
+            # Hand the engine a large BLOCK per call so the TEI client can fan many
+            # per-POST batches (engine.batch_size each) across all replicas at once.
+            block = max(cfg.engine.batch_size, 1024)
 
-            for start in range(V, n, bs):
-                stop = min(start + bs, n)
+            for start in range(V, n, block):
+                stop = min(start + block, n)
                 batch_texts = [texts[i] or "" for i in range(start, stop)]
                 vecs = engine.embed_documents(batch_texts)  # [b, dim] float32
                 vecs = np.ascontiguousarray(vecs, dtype=VECTOR_DISK_DTYPE)
