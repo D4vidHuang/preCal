@@ -19,7 +19,7 @@ model:
 engine:
   name: tei
   image: ghcr.io/huggingface/text-embeddings-inference:120-1.9
-  replicas_per_gpu: 4
+  replicas_per_gpu: 2                   # 4B x2 = ~16GB weights; concurrent client + failover
   max_batch_tokens: 16384
 
 index:

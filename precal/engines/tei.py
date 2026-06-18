@@ -86,21 +86,28 @@ class TEIEmbedder(Embedder):
             self._session = requests.Session()
         return self._session
 
-    def _post_embed(self, endpoint: str, texts: List[str]) -> np.ndarray:
-        """POST one batch to a SPECIFIC replica's /embed endpoint."""
-        url = f"{endpoint}/embed"
+    def _post_embed(self, start_idx: int, texts: List[str]) -> np.ndarray:
+        """POST one batch, starting at replica start_idx, FAILING OVER to the other
+        replicas with backoff if one is down (a replica can OOM/crash mid-run)."""
+        import time
+        from requests.exceptions import RequestException
         # TEI rejects empty/whitespace inputs with 400; substitute a single space so
-        # a degenerate item still yields a (throwaway) vector and the batch stays 1:1
-        # with its rows. Callers should avoid empties; this is cheap insurance.
+        # a degenerate item still yields a (throwaway) vector and the batch stays 1:1.
         texts = [t if (t and t.strip()) else " " for t in texts]
-        # TEI accepts {"inputs": [...], "normalize": false}; we normalize
-        # ourselves in the base class for a single source of truth.
         payload = {"inputs": texts, "normalize": False, "truncate": True}
-        resp = self._get_session().post(url, json=payload, timeout=self.timeout)
-        resp.raise_for_status()
-        data = resp.json()
-        # TEI returns a list of vectors (list[list[float]]).
-        return np.asarray(data, dtype=np.float32)
+        n = len(self.endpoints)
+        attempts = max(4, 2 * n)
+        last = None
+        for k in range(attempts):
+            ep = self.endpoints[(start_idx + k) % n]   # round to a (hopefully live) replica
+            try:
+                resp = self._get_session().post(f"{ep}/embed", json=payload, timeout=self.timeout)
+                resp.raise_for_status()
+                return np.asarray(resp.json(), dtype=np.float32)
+            except RequestException as e:
+                last = e
+                time.sleep(min(2 ** k, 8))
+        raise RuntimeError(f"TEI /embed failed after {attempts} attempts across {n} replica(s): {last}")
 
     def _encode(self, texts: Sequence[str], is_query: bool) -> np.ndarray:
         texts = list(texts)
@@ -114,7 +121,7 @@ class TEIEmbedder(Embedder):
         # threads don't race on a shared round-robin. Order preserved by index.
         def _work(item):
             idx, batch = item
-            return self._post_embed(self.endpoints[idx % n_ep], batch)
+            return self._post_embed(idx % n_ep, batch)   # start replica; fails over internally
         if n_ep > 1 and len(batches) > 1:
             from concurrent.futures import ThreadPoolExecutor
             with ThreadPoolExecutor(max_workers=n_ep) as ex:
