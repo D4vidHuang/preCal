@@ -64,15 +64,21 @@ for ((i=0; i<REPLICAS; i++)); do
 
   # --nv exposes the NVIDIA stack; bind HF_HOME so the staged snapshot is visible offline.
   # TEI reads the model from --model-id (a LOCAL staged dir on compute nodes).
+  # Use `exec text-embeddings-router` (the binary at /usr/local/bin), NOT `run`:
+  # `run` executes the image's relative entrypoint.sh against the bind-mounted host
+  # CWD and fails with "stat <cwd>/entrypoint.sh: no such file". exec runs the
+  # router directly. --pwd / and --no-home keep the host CWD/home out of the picture.
   CUDA_VISIBLE_DEVICES="${GPU}" \
-  "${RUNTIME}" run --nv \
+  "${RUNTIME}" exec --nv --pwd / --no-home \
     --env HF_HUB_OFFLINE=1 \
     --env TRANSFORMERS_OFFLINE=1 \
     --env HF_HOME="${HF_HOME:-${PRECAL_HF_HOME:-/tmp/hf}}" \
     --bind "${HF_HOME:-${PRECAL_HF_HOME:-/tmp/hf}}:${HF_HOME:-${PRECAL_HF_HOME:-/tmp/hf}}" \
     "${SIF}" \
+    text-embeddings-router \
     --model-id "${MODEL_ID}" \
     --port "${PORT}" \
+    --hostname 127.0.0.1 \
     --dtype "${DTYPE}" \
     --max-batch-tokens "${MAX_BATCH_TOKENS}" \
     --pooling last-token \
