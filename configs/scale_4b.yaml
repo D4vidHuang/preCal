@@ -1,0 +1,35 @@
+# Scale-up config for the 4B depth runs (layered on configs/default.yaml).
+# run.name is set PER BATCH by scripts/scale_run.sh via ${PRECAL_RUN_NAME} so each
+# batch is an isolated scratch subtree (clean rm -rf) and a unique HF filename prefix.
+# For a single manual run, export PRECAL_RUN_NAME=<name> before invoking the CLI.
+
+run:
+  name: "${PRECAL_RUN_NAME}"      # e.g. precal-s4b-250k / precal-4b-b0 ...
+  seed: 42
+
+corpus:
+  languages: [python, java, javascript, php, go, ruby]
+  max_files_per_lang: 250000      # Tier 1 (validate). Tier 2 = 1000000; Tier 4 = 0 (all)
+
+shard:
+  target_chunks: 50000            # ~3-4 shards / 50k chunks -> wide GPU array
+
+model:
+  id: Qwen/Qwen3-Embedding-4B
+  dtype: bfloat16                 # -> float16 under TEI
+  embed_dim: 2560
+
+engine:
+  name: tei
+  image: ghcr.io/huggingface/text-embeddings-inference:120-1.9
+  replicas_per_gpu: 2
+  max_batch_tokens: 16384
+
+index:
+  factory_full: OPQ64_256,IVF8192,PQ64   # nlist for ~2M vectors (Tier1). Tier2: IVF16384
+  train_sample: 2000000
+  merge: sharded                  # per-batch index (batch-and-free compatible)
+
+eval:
+  benchmark: coir-csn
+  ks: [1, 5, 10, 100]

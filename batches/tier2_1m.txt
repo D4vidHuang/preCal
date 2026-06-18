@@ -1,0 +1,4 @@
+# Tier 2: 1M/lang (10x v1), 3 batches of 2 langs; run WITH --free (batch-and-free)
+precal-4b-1m-b0 python,javascript
+precal-4b-1m-b1 java,php
+precal-4b-1m-b2 go,ruby

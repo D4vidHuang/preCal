@@ -58,6 +58,10 @@ def assemble_layout(cfg: Config) -> str:
 
     root = ensure_dir(cfg.publish_dir)
     entries = M.read_manifest(cfg.manifest_path)
+    # Prefix every published filename with the run name so MULTIPLE runs/batches
+    # (each a distinct run.name) can coexist in ONE HF repo without clobbering
+    # (corpus/lang=python/part-00000.parquet would otherwise collide across runs).
+    rn = cfg.run.name
 
     for entry in entries:
         lang = entry.language
@@ -71,7 +75,7 @@ def assemble_layout(cfg: Config) -> str:
 
         # ---- corpus view: the code chunks (the retrieval documents) -------- #
         corpus_dir = ensure_dir(os.path.join(root, "corpus", f"lang={lang}"))
-        corpus_out = os.path.join(corpus_dir, f"part-{entry.shard_id:05d}.parquet")
+        corpus_out = os.path.join(corpus_dir, f"{rn}-part-{entry.shard_id:05d}.parquet")
         pq.write_table(table, corpus_out + ".tmp", compression="zstd", row_group_size=20000)
         os.replace(corpus_out + ".tmp", corpus_out)
 
@@ -86,7 +90,7 @@ def assemble_layout(cfg: Config) -> str:
                     if c in q_table.column_names
                 ]
                 queries_dir = ensure_dir(os.path.join(root, "queries", f"lang={lang}"))
-                q_out = os.path.join(queries_dir, f"part-{entry.shard_id:05d}.parquet")
+                q_out = os.path.join(queries_dir, f"{rn}-part-{entry.shard_id:05d}.parquet")
                 pq.write_table(q_table.select(q_cols), q_out + ".tmp", compression="zstd")
                 os.replace(q_out + ".tmp", q_out)
 
@@ -104,24 +108,24 @@ def assemble_layout(cfg: Config) -> str:
                     }
                 )
                 qrels_dir = ensure_dir(os.path.join(root, "qrels", f"lang={lang}"))
-                qr_out = os.path.join(qrels_dir, f"part-{entry.shard_id:05d}.parquet")
+                qr_out = os.path.join(qrels_dir, f"{rn}-part-{entry.shard_id:05d}.parquet")
                 pq.write_table(qrels, qr_out + ".tmp", compression="zstd")
                 os.replace(qr_out + ".tmp", qr_out)
 
         # ---- vectors sidecar ---------------------------------------------- #
         if os.path.exists(entry.out_npy):
             v_dst = os.path.join(
-                root, "vectors", f"lang={lang}", os.path.basename(entry.out_npy)
+                root, "vectors", f"lang={lang}", f"{rn}-{os.path.basename(entry.out_npy)}"
             )
             _link_or_copy(entry.out_npy, v_dst)
 
     # ---- faiss indexes ---------------------------------------------------- #
     for fpath in glob.glob(os.path.join(cfg.faiss_dir, "**", "*.faiss"), recursive=True):
         rel = os.path.relpath(fpath, cfg.faiss_dir)
-        _link_or_copy(fpath, os.path.join(root, "faiss", rel))
+        _link_or_copy(fpath, os.path.join(root, "faiss", rn, rel))
     for fpath in glob.glob(os.path.join(cfg.faiss_dir, "**", "*.ivfdata"), recursive=True):
         rel = os.path.relpath(fpath, cfg.faiss_dir)
-        _link_or_copy(fpath, os.path.join(root, "faiss", rel))
+        _link_or_copy(fpath, os.path.join(root, "faiss", rn, rel))
 
     # ---- dataset card ----------------------------------------------------- #
     write_dataset_card(cfg, root)
