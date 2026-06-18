@@ -62,9 +62,10 @@ if [[ "${FORCE_CONDA}" -eq 0 ]] && ensure_uv; then
 
   STAMP="${PRECAL_VENV}/.precal-deps-ok"
   if [[ ! -f "${STAMP}" || "${DO_UPDATE}" -eq 1 ]]; then
-    echo "[setup_env] installing requirements via uv (this pulls torch for the reference engine; a few min)…"
+    echo "[setup_env] installing requirements via uv (torch-free core; ~1-2 min)…"
     # hf_transfer accelerates staged download/upload on login nodes.
-    uv pip install --python "${PRECAL_VENV}/bin/python" -r "${REQ}" hf_transfer
+    # Explicit --cache-dir is bulletproof even if the shell pre-exports UV_CACHE_DIR to $HOME.
+    uv pip install --cache-dir "${UV_CACHE_DIR}" --python "${PRECAL_VENV}/bin/python" -r "${REQ}" hf_transfer
     touch "${STAMP}"
   else
     echo "[setup_env] deps already installed (stamp ${STAMP}); pass --update to refresh."

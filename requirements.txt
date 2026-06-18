@@ -27,16 +27,18 @@ datasets>=2.20
 tree-sitter-language-pack==1.8.1   # MIT, 305 langs, py>=3.10 (spec-pinned)
 tree-sitter>=0.21                  # runtime required by the language pack
 
-# --- model / tokenizer (token counting + reference engine) ---
-transformers>=4.51                 # Qwen3 architecture support
-sentence-transformers>=3.0         # reference engine only (eval ground-truth)
+# --- model / tokenizer (token counting; tokenizers-only, no torch needed) ---
+transformers>=4.51                 # Qwen3 tokenizer/config; works without torch
 
 # --- FAISS index build (v1 default: CPU) ---
 faiss-cpu>=1.8.0
 
-# --- eval ---
-mteb>=1.14                         # CoIR-CSN protocol cross-check (optional path)
-
-# --- optional fallback engines (uncomment to install on the relevant node) ---
+# --- OPTIONAL (NOT installed by default: each pulls torch, ~3GB) -------------
+# The v1 pipeline embeds via the TEI container and scores eval with pure numpy,
+# so torch is not required. Install these only if you want the reference engine
+# or the real-mteb CoIR cross-check:
+#   uv pip install --cache-dir "$UV_CACHE_DIR" sentence-transformers mteb
+# sentence-transformers>=3.0       # engine.name=sentence_transformers (reference)
+# mteb>=1.14                       # real CoIR-CSN protocol cross-check (TODO path)
 # infinity-emb[all]>=0.0.70        # engine.name=infinity (bf16, in-process)
 # vllm>=0.6.0                       # engine.name=vllm (pooling runner; sm_120 build)

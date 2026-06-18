@@ -28,17 +28,23 @@ export HF_HOME="${PRECAL_HF_HOME}"
 export HF_HUB_ENABLE_HF_TRANSFER="${HF_HUB_ENABLE_HF_TRANSFER:-1}"
 export PRECAL_TEI_SIF="${PRECAL_TEI_SIF:-${PRECAL_SCRATCH}/tei_120-1.9.sif}"
 
-# --- keep ALL caches/installs off the small $HOME quota -----------------------
-# XDG_DATA_HOME is uv's data ROOT: managed CPython lands in $XDG_DATA_HOME/uv/python.
-# Setting it is the reliable redirect (uv ignored UV_PYTHON_INSTALL_DIR in 0.11.x).
-export XDG_DATA_HOME="${XDG_DATA_HOME:-${PRECAL_SCRATCH}/share}"
-export XDG_CACHE_HOME="${XDG_CACHE_HOME:-${PRECAL_SCRATCH}/cache/xdg}"
-export XDG_CONFIG_HOME="${XDG_CONFIG_HOME:-${PRECAL_SCRATCH}/config}"
-export UV_INSTALL_DIR="${UV_INSTALL_DIR:-${PRECAL_SCRATCH}/bin}"           # the uv binary
-export UV_CACHE_DIR="${UV_CACHE_DIR:-${PRECAL_SCRATCH}/cache/uv}"           # wheels/build cache
-export UV_PYTHON_INSTALL_DIR="${UV_PYTHON_INSTALL_DIR:-${XDG_DATA_HOME}/uv/python}"  # managed CPython
-export PIP_CACHE_DIR="${PIP_CACHE_DIR:-${PRECAL_SCRATCH}/cache/pip}"
-export UV_NO_MODIFY_PATH=1                                                 # don't touch ~/.bashrc
+# --- FORCE all caches/installs onto scratch (NOT ${VAR:-default}) -------------
+# DAIC's default profile pre-exports some of these to $HOME (confirmed:
+# XDG_CACHE_HOME=$HOME/.cache, UV_CACHE_DIR=$HOME/.cache/uv), so a :-default would
+# INHERIT the $HOME value and re-hit the tiny home quota. Override unconditionally.
+export XDG_DATA_HOME="${PRECAL_SCRATCH}/share"          # uv managed CPython -> $XDG_DATA_HOME/uv/python
+export XDG_CACHE_HOME="${PRECAL_SCRATCH}/cache/xdg"
+export XDG_CONFIG_HOME="${PRECAL_SCRATCH}/config"
+export UV_INSTALL_DIR="${PRECAL_SCRATCH}/bin"           # the uv binary
+export UV_CACHE_DIR="${PRECAL_SCRATCH}/cache/uv"        # wheels/build cache (torch etc.)
+export UV_PYTHON_INSTALL_DIR="${PRECAL_SCRATCH}/share/uv/python"
+export PIP_CACHE_DIR="${PRECAL_SCRATCH}/cache/pip"
+export UV_NO_MODIFY_PATH=1                              # don't touch ~/.bashrc
+# apptainer/singularity blob+build caches and tmp (default ~/.cache/apptainer = $HOME).
+export APPTAINER_CACHEDIR="${PRECAL_SCRATCH}/cache/apptainer"
+export APPTAINER_TMPDIR="${PRECAL_SCRATCH}/tmp"
+export SINGULARITY_CACHEDIR="${PRECAL_SCRATCH}/cache/apptainer"
+export SINGULARITY_TMPDIR="${PRECAL_SCRATCH}/tmp"
 # Repo-local venv (repo is on the big disk too); override with PRECAL_VENV.
 export PRECAL_VENV="${PRECAL_VENV:-${_PRECAL_REPO}/.venv}"
 
@@ -47,4 +53,5 @@ export PATH="${PRECAL_SCRATCH}/bin:${HOME}/.local/bin:${HOME}/.cargo/bin:${PATH}
 
 mkdir -p "${PRECAL_SCRATCH}" "${PRECAL_HF_HOME}" "${UV_INSTALL_DIR}" \
          "${UV_CACHE_DIR}" "${UV_PYTHON_INSTALL_DIR}" "${XDG_DATA_HOME}" \
-         "${XDG_CACHE_HOME}" "${XDG_CONFIG_HOME}" "${PIP_CACHE_DIR}" 2>/dev/null || true
+         "${XDG_CACHE_HOME}" "${XDG_CONFIG_HOME}" "${PIP_CACHE_DIR}" \
+         "${APPTAINER_CACHEDIR}" "${APPTAINER_TMPDIR}" 2>/dev/null || true
