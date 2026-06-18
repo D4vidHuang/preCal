@@ -391,9 +391,21 @@ def chunk_file(
         it is split into sliding token windows (truncated=True on each piece).
         ``base_start_line`` is the 1-based start line of the span within the file.
         """
-        n_tok = count_tokens(tokenizer, span_text)
-        if n_tok < min_tokens:
-            return  # noise filter
+        # FAST PATH: char-based token BOUNDS skip the slow per-symbol tokenizer
+        # call for the common (small) symbol — the chunk-throughput bottleneck at
+        # scale. For code ~2-5 chars/token, so lo=len/5 lower-bounds and hi=len/2
+        # upper-bounds the true token count. hi<=max_tokens => it GENUINELY fits
+        # (never under-windows); only straddling cases call the exact tokenizer.
+        _clen = len(span_text)
+        _lo, _hi = _clen // 5, max(1, _clen // 2)
+        if _hi < min_tokens:
+            return  # genuinely below the noise floor
+        if _hi <= max_tokens and _lo >= min_tokens:
+            n_tok = max(min_tokens, _clen // 3)          # approx; definitely one chunk
+        else:
+            n_tok = count_tokens(tokenizer, span_text)   # exact: near boundary / oversized
+            if n_tok < min_tokens:
+                return  # noise filter
         if n_tok <= max_tokens:
             end_line = base_start_line + span_text.count("\n")
             cid = make_chunk_id(span_text, repo_name, path, base_start_line, end_line)
