@@ -93,7 +93,13 @@ def cmd_chunk(args: argparse.Namespace) -> int:
         return 2
 
     out_dir = ensure_dir(args.out or os.path.join(cfg.chunks_dir, f"lang={language}"))
-    tokenizer = load_tokenizer(cfg.model.id, cfg.model.revision)
+    # Compute nodes are offline: load the tokenizer from the staged local dir
+    # ($HF_HOME/staged/<model_id>) when present, NOT the repo id (which would hit
+    # the network and fail under HF_HUB_OFFLINE).
+    from precal.staging import staged_model_dir
+    _staged = staged_model_dir(cfg)
+    _model_ref = _staged if os.path.isdir(_staged) else cfg.model.id
+    tokenizer = load_tokenizer(_model_ref, cfg.model.revision)
     allow = set(cfg.corpus.license_allowlist)
     corpus_snapshot = f"{cfg.corpus.dataset_id}@{cfg.corpus.revision}"
     schema = arrow_schema(include_embedding=False, subset=CHUNK_STAGE_COLUMNS)

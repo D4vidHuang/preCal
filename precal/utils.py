@@ -95,13 +95,15 @@ def load_tokenizer(model_id: str, revision: str = "main"):
     Respects HF offline mode if the env vars are set. Cached so repeated calls
     in the chunk stage don't re-load. Returns the tokenizer object.
     """
+    import os as _os
     from transformers import AutoTokenizer  # lazy
 
-    return AutoTokenizer.from_pretrained(
-        model_id,
-        revision=revision,
-        trust_remote_code=False,
-    )
+    # A local staged dir has no git revision; pass revision only for a repo id so
+    # offline loads from a path don't trigger a hub lookup (HF_HUB_OFFLINE).
+    kwargs = {"trust_remote_code": False}
+    if not _os.path.isdir(model_id):
+        kwargs["revision"] = revision
+    return AutoTokenizer.from_pretrained(model_id, **kwargs)
 
 
 def count_tokens(tokenizer, text: str) -> int:
