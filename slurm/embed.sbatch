@@ -68,7 +68,10 @@ ENGINE="$(python "${REPO_ROOT}/scripts/cfg.py" "$CONFIG" engine.name)"
 REPLICAS="$(python "${REPO_ROOT}/scripts/cfg.py" "$CONFIG" engine.replicas_per_gpu)"
 MODEL_ID="$(python "${REPO_ROOT}/scripts/cfg.py" "$CONFIG" model.id)"
 RUN_NAME="$(python "${REPO_ROOT}/scripts/cfg.py" "$CONFIG" run.name precal-v1)"
-BASE_PORT="${PRECAL_TEI_BASE_PORT:-7997}"
+# Unique base port PER ARRAY TASK: DAIC packs 2 Pro 6000 per node, so two array
+# tasks share a node and would otherwise both bind 7997/7998 -> collision ->
+# "connection refused" on a replica. Offset by task id (8 ports apart, > replicas).
+BASE_PORT="${PRECAL_TEI_BASE_PORT:-$(( 7997 + ( ${SLURM_ARRAY_TASK_ID:-0} % 120 ) * 8 ))}"
 SIF_PATH="${PRECAL_TEI_SIF:-${PRECAL_SCRATCH}/tei_120-1.9.sif}"
 
 echo "[embed] engine=${ENGINE} replicas=${REPLICAS} model=${MODEL_ID}"
