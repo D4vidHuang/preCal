@@ -165,10 +165,12 @@ def _embed_stripped_corpus(
     We strip it (precal.chunking.strip_leading_doc) for the embedded body only;
     parquet ``text`` keeps the full original. Returns [N, embed_dim] float32.
     """
-    stripped = [
-        strip_leading_doc(t or "", lang or "")
-        for t, lang in zip(corpus_texts, corpus_langs)
-    ]
+    # A chunk that is ENTIRELY a docstring/comment strips to "" — never embed an
+    # empty body (TEI rejects empty inputs with 400). Fall back to the original.
+    stripped = []
+    for t, lang in zip(corpus_texts, corpus_langs):
+        s = strip_leading_doc(t or "", lang or "")
+        stripped.append(s if s.strip() else ((t or "").strip() or " "))
     out: List[np.ndarray] = []
     bs = max(1, cfg.engine.batch_size)
     for start in range(0, len(stripped), bs):

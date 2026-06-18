@@ -92,6 +92,10 @@ class TEIEmbedder(Embedder):
 
         endpoint = next(self._rr)
         url = f"{endpoint}/embed"
+        # TEI rejects empty/whitespace inputs with 400; substitute a single space so
+        # a degenerate item still yields a (throwaway) vector and the batch stays 1:1
+        # with its rows. Callers should avoid empties; this is cheap insurance.
+        texts = [t if (t and t.strip()) else " " for t in texts]
         # TEI accepts {"inputs": [...], "normalize": false}; we normalize
         # ourselves in the base class for a single source of truth.
         payload = {"inputs": texts, "normalize": False, "truncate": True}
