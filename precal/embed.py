@@ -78,7 +78,7 @@ def _existing_vector_count(npy_path: str) -> int:
     return shp[0] if shp is not None else 0
 
 
-def _open_shard_memmap(npy_path: str, n: int, dim: int, valid_rows: int):
+def _open_shard_memmap(npy_path: str, n: int, dim: int, valid_rows: int, dtype=None):
     """Open (or create) the shard .npy as a writeable ``[n, dim]`` float32 memmap.
 
     The .npy is preallocated ONCE at full shard size so batches write into fixed
@@ -97,7 +97,7 @@ def _open_shard_memmap(npy_path: str, n: int, dim: int, valid_rows: int):
         ``valid_rows`` rows into a fresh full-size memmap, drop the rest.
       * Otherwise -> fresh zero-initialized full-size memmap.
     """
-    dtype = np.dtype(VECTOR_DISK_DTYPE)
+    dtype = np.dtype(dtype if dtype is not None else VECTOR_DISK_DTYPE)
     shp = _npy_shape(npy_path)
     if shp == (n, dim):
         return np.lib.format.open_memmap(npy_path, mode="r+")
@@ -214,14 +214,15 @@ def embed_shard(
         human_int(V),
     )
 
+    _vdtype = np.dtype(cfg.model.vector_dtype)  # .npy storage dtype (fp32|fp16)
     if V >= n:
         logger.info("shard %d: nothing to embed (already complete).", shard_id)
         # Still (re)open to guarantee the canonical [n,dim] file exists on disk.
-        mm = _open_shard_memmap(npy_path, n, dim, V)
+        mm = _open_shard_memmap(npy_path, n, dim, V, dtype=_vdtype)
         mm.flush()
         del mm
     else:
-        mm = _open_shard_memmap(npy_path, n, dim, V)
+        mm = _open_shard_memmap(npy_path, n, dim, V, dtype=_vdtype)
         engine = build_engine(cfg, base_port=base_port)
         try:
             cursor = V
@@ -236,7 +237,7 @@ def embed_shard(
                 stop = min(start + block, n)
                 batch_texts = [texts[i] or "" for i in range(start, stop)]
                 vecs = engine.embed_documents(batch_texts)  # [b, dim] float32
-                vecs = np.ascontiguousarray(vecs, dtype=VECTOR_DISK_DTYPE)
+                vecs = np.ascontiguousarray(vecs, dtype=_vdtype)
                 if vecs.shape[0] != (stop - start):
                     raise RuntimeError(
                         f"shard {shard_id}: engine returned {vecs.shape[0]} vectors "

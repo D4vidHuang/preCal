@@ -126,6 +126,9 @@ class ModelConfig:
     pooling: str = "last_token"                        # model.pooling
     normalize: bool = True                             # model.normalize
     embed_dim: int = 2560                              # model.embed_dim
+    vector_dtype: str = "float32"                      # .npy STORAGE dtype: float32|float16
+    #   float16 halves vectors on disk + HF (big/cheap variants, the all-6 ceiling);
+    #   FAISS still trains/adds in float32 (index.py casts), so it is lossless for ANN.
     # model.query_instruction -> the task_description injected into the QUERY
     # wrapper 'Instruct: {task}\nQuery: {q}'. Documents/code get NO prefix.
     query_instruction: str = (
