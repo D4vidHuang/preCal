@@ -29,7 +29,8 @@ engine:
 index:
   factory_full: OPQ64_256,IVF16384,PQ64  # nlist for ~8.5M vectors (Tier2)
   train_sample: 2000000
-  merge: sharded                  # per-batch index (batch-and-free compatible)
+  merge: ondisk                   # build ONE per-batch index straight from the .npy
+                                  # (no per-shard Flat needed; we skip 'index --all')
 
 eval:
   benchmark: coir-csn
