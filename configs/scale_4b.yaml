@@ -9,7 +9,7 @@ run:
 
 corpus:
   languages: [python, java, javascript, php, go, ruby]
-  max_files_per_lang: 250000      # Tier 1 (validate). Tier 2 = 1000000; Tier 4 = 0 (all)
+  max_files_per_lang: 1000000     # Tier 2 (10x v1). Tier 1 was 250000; Tier 4 = 0 (all)
 
 shard:
   target_chunks: 50000            # ~3-4 shards / 50k chunks -> wide GPU array
@@ -26,7 +26,7 @@ engine:
   max_batch_tokens: 16384
 
 index:
-  factory_full: OPQ64_256,IVF8192,PQ64   # nlist for ~2M vectors (Tier1). Tier2: IVF16384
+  factory_full: OPQ64_256,IVF16384,PQ64  # nlist for ~8.5M vectors (Tier2)
   train_sample: 2000000
   merge: sharded                  # per-batch index (batch-and-free compatible)
 
