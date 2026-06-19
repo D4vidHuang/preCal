@@ -99,9 +99,10 @@ while read -r RN LANGS _rest; do
   done
   echo "[$RN] embed complete ${N}/${N}"
 
-  # 4) INDEX (per-shard Flat) + MERGE (per-batch OPQ-IVF-PQ; sharded mode).
+  # 4) MERGE only (per-batch OPQ-IVF-PQ built straight from the .npy memmaps).
+  #    Skip per-shard Flat ('index --all'): it just re-stores the full vectors we
+  #    already have as .npy (doubles disk), and merge-index reads the .npy directly.
   if [[ ! -f "${STATE}/${RN}.merged" ]]; then
-    $PY index --config "$CONFIG" --all || exit 7
     $PY merge-index --config "$CONFIG" || exit 7
     touch "${STATE}/${RN}.merged"
   fi

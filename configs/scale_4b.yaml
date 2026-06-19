@@ -18,6 +18,7 @@ model:
   id: Qwen/Qwen3-Embedding-4B
   dtype: bfloat16                 # -> float16 under TEI
   embed_dim: 2560
+  vector_dtype: float16           # halve .npy on the tight shared scratch + HF
 
 engine:
   name: tei
