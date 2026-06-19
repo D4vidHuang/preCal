@@ -162,7 +162,11 @@ def build_shards(
         offset = 0
         while offset < n_rows:
             length = min(target, n_rows - offset)
-            shard_table = table.slice(offset, length)
+            # combine_chunks() materializes JUST this slice into fresh contiguous
+            # arrays; without it, the slice still points at the >2GB large_string
+            # parent buffer and .cast(schema) (large_string->string) fails with
+            # "input array too large". Each <=target-row slice is small (<2GB).
+            shard_table = table.slice(offset, length).combine_chunks()
 
             if do_pairs:
                 shard_table = _apply_pairs(
