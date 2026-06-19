@@ -125,7 +125,18 @@ def build_shards(
         # Read all rows for this language, ordered by chunk_id for determinism.
         # Read each file explicitly and concat so Hive-style directory layout
         # (lang=<l>/) does NOT inject a partition column into the table.
-        tables = [pq.read_table(f) for f in files]
+        # Code `text` across many parts can exceed Arrow's 2GB `string` (int32
+        # offset) cap when concatenated -> promote string columns to large_string
+        # for the concat/sort. Each per-shard slice (<=target rows) is narrowed
+        # back to `string` by .cast(schema) at write time (always < 2GB).
+        def _to_large_string(t):
+            f2 = [
+                pa.field(f.name, pa.large_string()) if pa.types.is_string(f.type) else f
+                for f in t.schema
+            ]
+            return t.cast(pa.schema(f2))
+
+        tables = [_to_large_string(pq.read_table(f)) for f in files]
         table = pa.concat_tables(tables, promote_options="default")
         # Keep only canonical chunk-stage columns in canonical order (drops any
         # stray columns such as an inferred partition field).
