@@ -65,8 +65,8 @@ COLUMNS: List[ColumnSpec] = [
     ColumnSpec("end_line", "int32", "1-based end line of the chunk span."),
     ColumnSpec("n_tokens", "int32", "Token count under the model tokenizer."),
     ColumnSpec("truncated", "bool", "True if the chunk exceeded chunk_max_tokens and was truncated/windowed."),
-    ColumnSpec("text", "string", "The chunk source code (DOCUMENT side, encoded RAW). Empty when not publishable."),
-    ColumnSpec("query_text", "string", "NL query paired to this chunk (docstring/CSN/commit), empty if none."),
+    ColumnSpec("text", "large_string", "The chunk source code (DOCUMENT side, encoded RAW). Empty when not publishable."),
+    ColumnSpec("query_text", "large_string", "NL query paired to this chunk (docstring/CSN/commit), empty if none."),
     ColumnSpec("query_source", "string", "Provenance of query_text: docstring|codesearchnet|coir|commit|none."),
     ColumnSpec("eval_split", "string", "Frozen split flag: index_only|eval_test|eval_valid (repo-level partition)."),
     ColumnSpec("vector_shard", "string", "Filename of the sidecar .npy holding this row's float32 vector."),
@@ -132,6 +132,7 @@ def _resolve_arrow_type(type_str: str):
 
     mapping = {
         "string": pa.string(),
+        "large_string": pa.large_string(),   # text cols: code can exceed Arrow's 2GB string cap at scale
         "bool": pa.bool_(),
         "int32": pa.int32(),
         "int64": pa.int64(),
@@ -183,7 +184,7 @@ def empty_row(corpus_snapshot: str = "") -> Dict[str, Any]:
     for c in COLUMNS:
         if c.name == "embedding":
             defaults[c.name] = None
-        elif c.arrow_type == "string":
+        elif c.arrow_type in ("string", "large_string"):
             defaults[c.name] = ""
         elif c.arrow_type == "bool":
             defaults[c.name] = False
